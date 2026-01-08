@@ -55,7 +55,7 @@ LDFLAGS = -m elf_i386 \
           -T $(BOOT_DIR)/linker.ld \
           -static
 
-.PHONY: all kernel iso run clean
+.PHONY: all kernel iso run debug clean
 
 all: kernel
 
@@ -65,6 +65,9 @@ iso: $(ISO)
 
 run: $(ISO)
 	$(QEMU) -cdrom $(ISO) -m 128M -serial stdio -boot d -no-reboot -no-shutdown
+
+debug: $(ISO)
+	$(QEMU) -cdrom $(ISO) -m 128M -serial stdio -boot d -no-reboot -no-shutdown -S -s
 
 $(KERNEL_ELF): $(ENTRY_O) $(MAIN_O) $(VGA_O) $(BOOT_DIR)/linker.ld | $(BUILD_DIR)
 	$(LD) $(LDFLAGS) -o $@ $(ENTRY_O) $(MAIN_O) $(VGA_O)

@@ -1,0 +1,10 @@
+# AgentOS GDB Initialization Script
+
+# Connect to QEMU GDB server
+target remote :1234
+
+# Set breakpoint at kernel_main
+break kernel_main
+
+# Continue execution
+continue
