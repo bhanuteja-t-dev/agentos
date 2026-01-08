@@ -28,10 +28,12 @@ ISO_GRUB_CFG = $(ISO_GRUB_DIR)/grub.cfg
 # Source files
 ENTRY_S = $(KERNEL_DIR)/arch/x86_64/entry.S
 MAIN_C = $(KERNEL_DIR)/main.c
+VGA_C = $(KERNEL_DIR)/vga.c
 
 # Object files
 ENTRY_O = $(BUILD_DIR)/entry.o
 MAIN_O = $(BUILD_DIR)/main.o
+VGA_O = $(BUILD_DIR)/vga.o
 
 # Compiler flags
 CFLAGS = -target $(TARGET) \
@@ -64,13 +66,16 @@ iso: $(ISO)
 run: $(ISO)
 	$(QEMU) -cdrom $(ISO) -m 128M -serial stdio -boot d -no-reboot -no-shutdown
 
-$(KERNEL_ELF): $(ENTRY_O) $(MAIN_O) $(BOOT_DIR)/linker.ld | $(BUILD_DIR)
-	$(LD) $(LDFLAGS) -o $@ $(ENTRY_O) $(MAIN_O)
+$(KERNEL_ELF): $(ENTRY_O) $(MAIN_O) $(VGA_O) $(BOOT_DIR)/linker.ld | $(BUILD_DIR)
+	$(LD) $(LDFLAGS) -o $@ $(ENTRY_O) $(MAIN_O) $(VGA_O)
 
 $(ENTRY_O): $(ENTRY_S) | $(BUILD_DIR)
 	$(AS) $(ASFLAGS) -c $< -o $@
 
 $(MAIN_O): $(MAIN_C) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(VGA_O): $(VGA_C) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR):

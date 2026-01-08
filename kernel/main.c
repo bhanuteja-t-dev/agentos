@@ -1,8 +1,13 @@
 // AgentOS Kernel Main Entry Point
+// Week 1 Day 4: Minimal freestanding kernel
+
+#include "vga.h"
 
 void kernel_main(void) {
-    // Simple infinite loop - halt the CPU
-    // This will be replaced with actual kernel logic in future iterations
+    // Write message to VGA text buffer
+    vga_write("Hello AgentOS");
+    
+    // Halt the CPU in infinite loop
     while (1) {
         __asm__ volatile ("hlt");
     }
