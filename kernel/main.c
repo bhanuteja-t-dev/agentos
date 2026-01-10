@@ -5,14 +5,30 @@
 #include "audit/audit.h"
 #include "cap/cap.h"
 #include "syscall/syscall.h"
+#include "intent/intent.h"
+
+// Helper function to copy string to intent payload (no libc)
+static void copy_to_payload(intent_t* intent, const char* msg) {
+    unsigned int i = 0;
+    while (msg[i] != '\0' && i < INTENT_PAYLOAD_MAX - 1) {
+        intent->payload[i] = msg[i];
+        i++;
+    }
+    intent->payload[i] = '\0';
+}
 
 // Simple entry function for "init" agent
 static void init_agent_entry(void* context) {
     // Context is the agent ID
     int agent_id = (int)(long)context;
     
-    // Attempt to write to console (should succeed if capability granted)
-    sys_console_write(agent_id, "init agent: Hello from init!\n");
+    // Create intent for console write
+    intent_t intent;
+    intent.action = INTENT_CONSOLE_WRITE;
+    copy_to_payload(&intent, "init agent: Hello from init!\n");
+    
+    // Submit intent (should succeed if capability granted)
+    sys_intent_submit(agent_id, &intent);
 }
 
 // Simple entry function for "demo" agent
@@ -20,8 +36,13 @@ static void demo_agent_entry(void* context) {
     // Context is the agent ID
     int agent_id = (int)(long)context;
     
-    // Attempt to write to console (should fail if capability not granted)
-    sys_console_write(agent_id, "demo agent: Hello from demo!\n");
+    // Create intent for console write
+    intent_t intent;
+    intent.action = INTENT_CONSOLE_WRITE;
+    copy_to_payload(&intent, "demo agent: Hello from demo!\n");
+    
+    // Submit intent (should fail if capability not granted)
+    sys_intent_submit(agent_id, &intent);
 }
 
 void kernel_main(void) {
@@ -65,13 +86,13 @@ void kernel_main(void) {
         audit_emit(AUDIT_TYPE_SYSTEM_ERROR, -1, "Failed to grant capability to init agent");
     }
     
-    // Run init agent (has capability, sys_console_write should succeed)
+    // Run init agent (has capability, sys_intent_submit should succeed)
     // init_agent_entry will be called with context=0, which is init_id
     if (agent_run(init_id) != 0) {
         audit_emit(AUDIT_TYPE_AGENT_ERROR, init_id, "init agent failed to run");
     }
     
-    // Run demo agent (no capability, sys_console_write should fail)
+    // Run demo agent (no capability, sys_intent_submit should fail)
     // demo_agent_entry will be called with context=1, which is demo_id
     if (agent_run(demo_id) != 0) {
         audit_emit(AUDIT_TYPE_AGENT_ERROR, demo_id, "demo agent failed to run");

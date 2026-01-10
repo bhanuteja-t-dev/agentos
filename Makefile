@@ -1,5 +1,5 @@
 # AgentOS Makefile
-# Week 2 Day 1: Build i386 Multiboot2 kernel with agent, audit, capability, and syscall modules
+# Week 2 Day 1: Build i386 Multiboot2 kernel with agent, audit, capability, intent, and syscall modules
 
 # Toolchain
 CC = clang

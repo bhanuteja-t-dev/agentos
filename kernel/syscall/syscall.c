@@ -5,6 +5,7 @@
 #include "cap/cap.h"
 #include "vga.h"
 #include "audit/audit.h"
+#include "intent/intent.h"
 
 // Helper function to get string length (no libc)
 static unsigned int str_len(const char* s) {
@@ -156,6 +157,216 @@ int sys_console_write(agent_id_t agent_id, const char* msg) {
     
     audit_msg[pos] = '\0';
     
+    audit_emit(AUDIT_TYPE_USER_ACTION, agent_id, audit_msg);
+    
+    return 0;
+}
+
+// Helper function to convert intent action to string (for audit)
+static const char* intent_action_to_string(intent_action_t action) {
+    switch (action) {
+        case INTENT_CONSOLE_WRITE:
+            return "CONSOLE_WRITE";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+int sys_intent_submit(agent_id_t agent_id, const intent_t* intent) {
+    // Validate arguments
+    if (intent == 0) {
+        return -1;
+    }
+    
+    // Validate agent ID
+    if (agent_id < 0 || agent_id >= AGENT_MAX_COUNT) {
+        return -1;
+    }
+    
+    // Validate intent action
+    if (intent->action >= INTENT_MAX) {
+        return -1;
+    }
+    
+    // Audit INTENT_SUBMIT event
+    char audit_msg[128];
+    unsigned int pos = 0;
+    
+    // Build message: "INTENT_SUBMIT action agent ID"
+    const char* submit_str = "INTENT_SUBMIT ";
+    unsigned int submit_len = str_len(submit_str);
+    for (unsigned int i = 0; i < submit_len && pos < 127; i++) {
+        audit_msg[pos++] = submit_str[i];
+    }
+    
+    // Add action string
+    const char* action_str = intent_action_to_string(intent->action);
+    unsigned int action_len = str_len(action_str);
+    for (unsigned int i = 0; i < action_len && pos < 127; i++) {
+        audit_msg[pos++] = action_str[i];
+    }
+    
+    // Add " agent "
+    const char* agent_str = " agent ";
+    unsigned int agent_len = str_len(agent_str);
+    for (unsigned int i = 0; i < agent_len && pos < 127; i++) {
+        audit_msg[pos++] = agent_str[i];
+    }
+    
+    // Add agent ID
+    char id_str[16];
+    int_to_string(agent_id, id_str, 16);
+    unsigned int id_len = str_len(id_str);
+    for (unsigned int i = 0; i < id_len && pos < 127; i++) {
+        audit_msg[pos++] = id_str[i];
+    }
+    
+    audit_msg[pos] = '\0';
+    audit_emit(AUDIT_TYPE_USER_ACTION, agent_id, audit_msg);
+    
+    // Get required capability for this intent action
+    cap_mask_t required_cap = intent_action_to_capability(intent->action);
+    
+    // Check capability
+    if (!cap_has(agent_id, required_cap)) {
+        // Capability denied - emit audit DENY event
+        pos = 0;
+        
+        // Build message: "DENY intent action agent ID: payload"
+        const char* deny_str = "DENY intent ";
+        unsigned int deny_len = str_len(deny_str);
+        for (unsigned int i = 0; i < deny_len && pos < 127; i++) {
+            audit_msg[pos++] = deny_str[i];
+        }
+        
+        // Add action string
+        action_str = intent_action_to_string(intent->action);
+        action_len = str_len(action_str);
+        for (unsigned int i = 0; i < action_len && pos < 127; i++) {
+            audit_msg[pos++] = action_str[i];
+        }
+        
+        // Add " agent "
+        agent_str = " agent ";
+        agent_len = str_len(agent_str);
+        for (unsigned int i = 0; i < agent_len && pos < 127; i++) {
+            audit_msg[pos++] = agent_str[i];
+        }
+        
+        // Add agent ID
+        int_to_string(agent_id, id_str, 16);
+        id_len = str_len(id_str);
+        for (unsigned int i = 0; i < id_len && pos < 127; i++) {
+            audit_msg[pos++] = id_str[i];
+        }
+        
+        // Add separator
+        if (pos < 127) {
+            audit_msg[pos++] = ':';
+            audit_msg[pos++] = ' ';
+        }
+        
+        // Copy payload (truncate if too long)
+        unsigned int payload_len = str_len(intent->payload);
+        unsigned int max_payload_len = 127 - pos;
+        if (payload_len > max_payload_len) {
+            payload_len = max_payload_len;
+        }
+        for (unsigned int i = 0; i < payload_len && pos < 127; i++) {
+            audit_msg[pos++] = intent->payload[i];
+        }
+        
+        audit_msg[pos] = '\0';
+        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, agent_id, audit_msg);
+        
+        return -1;
+    }
+    
+    // Capability allowed - execute intent based on action
+    int execute_result = -1;
+    
+    switch (intent->action) {
+        case INTENT_CONSOLE_WRITE:
+            // Execute console write: print payload to VGA
+            vga_write(intent->payload);
+            execute_result = 0;
+            break;
+        
+        default:
+            // Unknown intent action (should not happen after validation)
+            execute_result = -1;
+            break;
+    }
+    
+    if (execute_result != 0) {
+        // Execution failed
+        pos = 0;
+        
+        const char* error_str = "Execution failed for intent ";
+        unsigned int error_len = str_len(error_str);
+        for (unsigned int i = 0; i < error_len && pos < 127; i++) {
+            audit_msg[pos++] = error_str[i];
+        }
+        
+        action_str = intent_action_to_string(intent->action);
+        action_len = str_len(action_str);
+        for (unsigned int i = 0; i < action_len && pos < 127; i++) {
+            audit_msg[pos++] = action_str[i];
+        }
+        
+        audit_msg[pos] = '\0';
+        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, agent_id, audit_msg);
+        return -1;
+    }
+    
+    // Emit audit ALLOW event (execution succeeded)
+    pos = 0;
+    
+    // Build message: "ALLOW intent action agent ID: payload"
+    const char* allow_str = "ALLOW intent ";
+    unsigned int allow_len = str_len(allow_str);
+    for (unsigned int i = 0; i < allow_len && pos < 127; i++) {
+        audit_msg[pos++] = allow_str[i];
+    }
+    
+    // Add action string
+    action_str = intent_action_to_string(intent->action);
+    action_len = str_len(action_str);
+    for (unsigned int i = 0; i < action_len && pos < 127; i++) {
+        audit_msg[pos++] = action_str[i];
+    }
+    
+    // Add " agent "
+    agent_str = " agent ";
+    agent_len = str_len(agent_str);
+    for (unsigned int i = 0; i < agent_len && pos < 127; i++) {
+        audit_msg[pos++] = agent_str[i];
+    }
+    
+    // Add agent ID
+    int_to_string(agent_id, id_str, 16);
+    id_len = str_len(id_str);
+    for (unsigned int i = 0; i < id_len && pos < 127; i++) {
+        audit_msg[pos++] = id_str[i];
+    }
+    
+    // Add separator
+    if (pos < 127) {
+        audit_msg[pos++] = ':';
+        audit_msg[pos++] = ' ';
+    }
+    
+    // Copy payload (truncate if too long)
+    unsigned int payload_len = str_len(intent->payload);
+    unsigned int max_payload_len = 127 - pos;
+    if (payload_len > max_payload_len) {
+        payload_len = max_payload_len;
+    }
+    for (unsigned int i = 0; i < payload_len && pos < 127; i++) {
+        audit_msg[pos++] = intent->payload[i];
+    }
+    
+    audit_msg[pos] = '\0';
     audit_emit(AUDIT_TYPE_USER_ACTION, agent_id, audit_msg);
     
     return 0;
