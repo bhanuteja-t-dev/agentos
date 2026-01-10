@@ -51,8 +51,8 @@ void kernel_main(void) {
     // Initialize audit system first (it emits its own init event)
     audit_init();
     
-    // Emit boot event
-    audit_emit(AUDIT_TYPE_SYSTEM_INIT, -1, "BOOT: Kernel starting");
+    // Emit boot event with structured record
+    audit_emit(AUDIT_TYPE_SYSTEM_INIT, AUDIT_RESULT_NONE, -1, -1, "BOOT: Kernel starting");
     
     // Initialize capability system
     cap_init();
@@ -62,7 +62,7 @@ void kernel_main(void) {
     
     // Register intent handlers
     if (intent_register_handler(INTENT_CONSOLE_WRITE, handle_console_write) != 0) {
-        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, -1, "Failed to register console write handler");
+        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, AUDIT_RESULT_FAILURE, -1, -1, "Failed to register console write handler");
     }
     
     // Initialize agent system
@@ -71,7 +71,7 @@ void kernel_main(void) {
     // Create "init" agent (will be agent 0, assuming sequential creation)
     int init_id = agent_create("init", init_agent_entry, (void*)(long)0);
     if (init_id < 0) {
-        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, -1, "Failed to create init agent");
+        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, AUDIT_RESULT_FAILURE, -1, -1, "Failed to create init agent");
         audit_dump_to_console();
         while (1) {
             __asm__ volatile ("hlt");
@@ -83,7 +83,7 @@ void kernel_main(void) {
     // Create "demo" agent (will be agent 1, assuming sequential creation)
     int demo_id = agent_create("demo", demo_agent_entry, (void*)(long)1);
     if (demo_id < 0) {
-        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, -1, "Failed to create demo agent");
+        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, AUDIT_RESULT_FAILURE, -1, -1, "Failed to create demo agent");
         audit_dump_to_console();
         while (1) {
             __asm__ volatile ("hlt");
@@ -93,19 +93,19 @@ void kernel_main(void) {
     
     // Grant CAP_CONSOLE_WRITE to init agent only
     if (cap_grant(init_id, CAP_CONSOLE_WRITE) != 0) {
-        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, -1, "Failed to grant capability to init agent");
+        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, AUDIT_RESULT_FAILURE, -1, -1, "Failed to grant capability to init agent");
     }
     
     // Run init agent (has capability, sys_intent_submit should succeed)
     // init_agent_entry will be called with context=0, which is init_id
     if (agent_run(init_id) != 0) {
-        audit_emit(AUDIT_TYPE_AGENT_ERROR, init_id, "init agent failed to run");
+        audit_emit(AUDIT_TYPE_AGENT_ERROR, AUDIT_RESULT_FAILURE, init_id, -1, "init agent failed to run");
     }
     
     // Run demo agent (no capability, sys_intent_submit should fail)
     // demo_agent_entry will be called with context=1, which is demo_id
     if (agent_run(demo_id) != 0) {
-        audit_emit(AUDIT_TYPE_AGENT_ERROR, demo_id, "demo agent failed to run");
+        audit_emit(AUDIT_TYPE_AGENT_ERROR, AUDIT_RESULT_FAILURE, demo_id, -1, "demo agent failed to run");
     }
     
     // Dump audit log to VGA console (all events in chronological order)

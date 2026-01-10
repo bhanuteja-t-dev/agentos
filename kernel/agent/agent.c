@@ -106,10 +106,10 @@ int agent_create(const char* name, agent_entry_t entry, void* context) {
             // Increment count
             agent_count_value++;
             
-            // Emit audit event for agent creation
+            // Emit audit event for agent creation with structured record
             char audit_msg[128];
             build_audit_msg(audit_msg, name, "agent created", 128);
-            audit_emit(AUDIT_TYPE_AGENT_CREATED, (int)i, audit_msg);
+            audit_emit(AUDIT_TYPE_AGENT_CREATED, AUDIT_RESULT_NONE, (int)i, -1, audit_msg);
             
             // Return agent ID (array index)
             return (int)i;
@@ -145,10 +145,10 @@ int agent_run(int id) {
     // Update state to running
     agent->state = AGENT_STATE_RUNNING;
     
-    // Emit audit event for agent started
+    // Emit audit event for agent started with structured record
     char audit_msg[128];
     build_audit_msg(audit_msg, agent->name, "agent started", 128);
-    audit_emit(AUDIT_TYPE_AGENT_STARTED, id, audit_msg);
+    audit_emit(AUDIT_TYPE_AGENT_STARTED, AUDIT_RESULT_NONE, id, -1, audit_msg);
     
     // Call agent entry point with context
     agent->entry(agent->context);
@@ -156,9 +156,9 @@ int agent_run(int id) {
     // Update state to completed
     agent->state = AGENT_STATE_COMPLETED;
     
-    // Emit audit event for agent completed
+    // Emit audit event for agent completed with structured record
     build_audit_msg(audit_msg, agent->name, "agent completed", 128);
-    audit_emit(AUDIT_TYPE_AGENT_COMPLETED, id, audit_msg);
+    audit_emit(AUDIT_TYPE_AGENT_COMPLETED, AUDIT_RESULT_SUCCESS, id, -1, audit_msg);
     
     return 0;
 }

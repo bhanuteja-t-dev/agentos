@@ -113,8 +113,8 @@ void cap_init(void) {
     
     cap_initialized = 1;
     
-    // Emit audit event for capability system initialization
-    audit_emit(AUDIT_TYPE_SYSTEM_INIT, -1, "Capability system initialized");
+    // Emit audit event for capability system initialization with structured record
+    audit_emit(AUDIT_TYPE_SYSTEM_INIT, AUDIT_RESULT_NONE, -1, -1, "Capability system initialized");
 }
 
 int cap_grant(agent_id_t agent_id, cap_mask_t mask) {
@@ -167,7 +167,8 @@ int cap_grant(agent_id_t agent_id, cap_mask_t mask) {
     
     audit_msg[pos] = '\0';
     
-    audit_emit(AUDIT_TYPE_USER_ACTION, agent_id, audit_msg);
+    // Emit capability grant event with structured record (SUCCESS result, no intent involved)
+    audit_emit(AUDIT_TYPE_USER_ACTION, AUDIT_RESULT_SUCCESS, agent_id, -1, audit_msg);
     
     return 0;
 }
