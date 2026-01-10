@@ -1,5 +1,5 @@
 # AgentOS Makefile
-# Week 2 Day 1: Build i386 Multiboot2 kernel with agent and audit modules
+# Week 2 Day 1: Build i386 Multiboot2 kernel with agent, audit, capability, and syscall modules
 
 # Toolchain
 CC = clang
@@ -31,6 +31,8 @@ MAIN_C = $(KERNEL_DIR)/main.c
 VGA_C = $(KERNEL_DIR)/vga.c
 AGENT_C = $(KERNEL_DIR)/agent/agent.c
 AUDIT_C = $(KERNEL_DIR)/audit/audit.c
+CAP_C = $(KERNEL_DIR)/cap/cap.c
+SYSCALL_C = $(KERNEL_DIR)/syscall/syscall.c
 
 # Object files
 ENTRY_O = $(BUILD_DIR)/entry.o
@@ -38,6 +40,8 @@ MAIN_O = $(BUILD_DIR)/main.o
 VGA_O = $(BUILD_DIR)/vga.o
 AGENT_O = $(BUILD_DIR)/agent.o
 AUDIT_O = $(BUILD_DIR)/audit.o
+CAP_O = $(BUILD_DIR)/cap.o
+SYSCALL_O = $(BUILD_DIR)/syscall.o
 
 # Include directories
 INCLUDES = -Ikernel
@@ -77,8 +81,8 @@ run: $(ISO)
 debug: $(ISO)
 	$(QEMU) -cdrom $(ISO) -m 128M -serial stdio -boot d -no-reboot -no-shutdown -S -s
 
-$(KERNEL_ELF): $(ENTRY_O) $(MAIN_O) $(VGA_O) $(AGENT_O) $(AUDIT_O) $(BOOT_DIR)/linker.ld | $(BUILD_DIR)
-	$(LD) $(LDFLAGS) -o $@ $(ENTRY_O) $(MAIN_O) $(VGA_O) $(AGENT_O) $(AUDIT_O)
+$(KERNEL_ELF): $(ENTRY_O) $(MAIN_O) $(VGA_O) $(AGENT_O) $(AUDIT_O) $(CAP_O) $(SYSCALL_O) $(BOOT_DIR)/linker.ld | $(BUILD_DIR)
+	$(LD) $(LDFLAGS) -o $@ $(ENTRY_O) $(MAIN_O) $(VGA_O) $(AGENT_O) $(AUDIT_O) $(CAP_O) $(SYSCALL_O)
 
 $(ENTRY_O): $(ENTRY_S) | $(BUILD_DIR)
 	$(AS) $(ASFLAGS) -c $< -o $@
@@ -93,6 +97,12 @@ $(AGENT_O): $(AGENT_C) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(AUDIT_O): $(AUDIT_C) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(CAP_O): $(CAP_C) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(SYSCALL_O): $(SYSCALL_C) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR):
