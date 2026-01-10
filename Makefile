@@ -33,6 +33,8 @@ AGENT_C = $(KERNEL_DIR)/agent/agent.c
 AUDIT_C = $(KERNEL_DIR)/audit/audit.c
 CAP_C = $(KERNEL_DIR)/cap/cap.c
 SYSCALL_C = $(KERNEL_DIR)/syscall/syscall.c
+ROUTER_C = $(KERNEL_DIR)/intent/router.c
+HANDLERS_C = $(KERNEL_DIR)/intent/handlers.c
 
 # Object files
 ENTRY_O = $(BUILD_DIR)/entry.o
@@ -42,6 +44,8 @@ AGENT_O = $(BUILD_DIR)/agent.o
 AUDIT_O = $(BUILD_DIR)/audit.o
 CAP_O = $(BUILD_DIR)/cap.o
 SYSCALL_O = $(BUILD_DIR)/syscall.o
+ROUTER_O = $(BUILD_DIR)/router.o
+HANDLERS_O = $(BUILD_DIR)/handlers.o
 
 # Include directories
 INCLUDES = -Ikernel
@@ -81,8 +85,8 @@ run: $(ISO)
 debug: $(ISO)
 	$(QEMU) -cdrom $(ISO) -m 128M -serial stdio -boot d -no-reboot -no-shutdown -S -s
 
-$(KERNEL_ELF): $(ENTRY_O) $(MAIN_O) $(VGA_O) $(AGENT_O) $(AUDIT_O) $(CAP_O) $(SYSCALL_O) $(BOOT_DIR)/linker.ld | $(BUILD_DIR)
-	$(LD) $(LDFLAGS) -o $@ $(ENTRY_O) $(MAIN_O) $(VGA_O) $(AGENT_O) $(AUDIT_O) $(CAP_O) $(SYSCALL_O)
+$(KERNEL_ELF): $(ENTRY_O) $(MAIN_O) $(VGA_O) $(AGENT_O) $(AUDIT_O) $(CAP_O) $(SYSCALL_O) $(ROUTER_O) $(HANDLERS_O) $(BOOT_DIR)/linker.ld | $(BUILD_DIR)
+	$(LD) $(LDFLAGS) -o $@ $(ENTRY_O) $(MAIN_O) $(VGA_O) $(AGENT_O) $(AUDIT_O) $(CAP_O) $(SYSCALL_O) $(ROUTER_O) $(HANDLERS_O)
 
 $(ENTRY_O): $(ENTRY_S) | $(BUILD_DIR)
 	$(AS) $(ASFLAGS) -c $< -o $@
@@ -103,6 +107,12 @@ $(CAP_O): $(CAP_C) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(SYSCALL_O): $(SYSCALL_C) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(ROUTER_O): $(ROUTER_C) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(HANDLERS_O): $(HANDLERS_C) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR):

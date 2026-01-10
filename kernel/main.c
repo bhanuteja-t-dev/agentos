@@ -6,6 +6,8 @@
 #include "cap/cap.h"
 #include "syscall/syscall.h"
 #include "intent/intent.h"
+#include "intent/router.h"
+#include "intent/handlers.h"
 
 // Helper function to copy string to intent payload (no libc)
 static void copy_to_payload(intent_t* intent, const char* msg) {
@@ -54,6 +56,14 @@ void kernel_main(void) {
     
     // Initialize capability system
     cap_init();
+    
+    // Initialize intent router system
+    intent_router_init();
+    
+    // Register intent handlers
+    if (intent_register_handler(INTENT_CONSOLE_WRITE, handle_console_write) != 0) {
+        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, -1, "Failed to register console write handler");
+    }
     
     // Initialize agent system
     agent_init();

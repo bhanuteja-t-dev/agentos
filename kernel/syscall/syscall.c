@@ -6,6 +6,7 @@
 #include "vga.h"
 #include "audit/audit.h"
 #include "intent/intent.h"
+#include "intent/router.h"
 
 // Helper function to get string length (no libc)
 static unsigned int str_len(const char* s) {
@@ -224,10 +225,34 @@ int sys_intent_submit(agent_id_t agent_id, const intent_t* intent) {
     audit_msg[pos] = '\0';
     audit_emit(AUDIT_TYPE_USER_ACTION, agent_id, audit_msg);
     
-    // Get required capability for this intent action
+    // Lookup handler for this intent action
+    intent_handler_t handler = intent_get_handler(intent->action);
+    
+    if (handler == 0) {
+        // No handler registered for this action - emit audit error
+        pos = 0;
+        
+        const char* error_str = "No handler registered for intent ";
+        unsigned int error_len = str_len(error_str);
+        for (unsigned int i = 0; i < error_len && pos < 127; i++) {
+            audit_msg[pos++] = error_str[i];
+        }
+        
+        action_str = intent_action_to_string(intent->action);
+        action_len = str_len(action_str);
+        for (unsigned int i = 0; i < action_len && pos < 127; i++) {
+            audit_msg[pos++] = action_str[i];
+        }
+        
+        audit_msg[pos] = '\0';
+        audit_emit(AUDIT_TYPE_SYSTEM_ERROR, agent_id, audit_msg);
+        return -1;
+    }
+    
+    // Map action to required capability
     cap_mask_t required_cap = intent_action_to_capability(intent->action);
     
-    // Check capability
+    // Enforce capability check
     if (!cap_has(agent_id, required_cap)) {
         // Capability denied - emit audit DENY event
         pos = 0;
@@ -282,27 +307,14 @@ int sys_intent_submit(agent_id_t agent_id, const intent_t* intent) {
         return -1;
     }
     
-    // Capability allowed - execute intent based on action
-    int execute_result = -1;
+    // Capability allowed - call handler
+    int handler_result = handler(agent_id, intent);
     
-    switch (intent->action) {
-        case INTENT_CONSOLE_WRITE:
-            // Execute console write: print payload to VGA
-            vga_write(intent->payload);
-            execute_result = 0;
-            break;
-        
-        default:
-            // Unknown intent action (should not happen after validation)
-            execute_result = -1;
-            break;
-    }
-    
-    if (execute_result != 0) {
-        // Execution failed
+    if (handler_result != 0) {
+        // Handler execution failed - emit audit failure event
         pos = 0;
         
-        const char* error_str = "Execution failed for intent ";
+        const char* error_str = "Handler execution failed for intent ";
         unsigned int error_len = str_len(error_str);
         for (unsigned int i = 0; i < error_len && pos < 127; i++) {
             audit_msg[pos++] = error_str[i];
@@ -319,7 +331,7 @@ int sys_intent_submit(agent_id_t agent_id, const intent_t* intent) {
         return -1;
     }
     
-    // Emit audit ALLOW event (execution succeeded)
+    // Handler executed successfully - emit audit ALLOW event
     pos = 0;
     
     // Build message: "ALLOW intent action agent ID: payload"
